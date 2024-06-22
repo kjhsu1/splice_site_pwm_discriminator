@@ -354,6 +354,11 @@ def extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, dono
 		# after finished with windowing through the donor for the particular chrom,
 		# window through the negative
 		for i in range(len(seq) - acceptor_base_length +1):
+			if seq[i+acceptor_base_length-2:i+acceptor_base_length] == 'AG':
+				if i+1 not in current_acceptor_list:
+					negative_acceptor_coords[chrom].append(i+1)
+
+			'''
 			# fix to 1-based index
 			base_number = i + 1
 
@@ -364,6 +369,7 @@ def extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, dono
 			# if yes, store as negative coord
 			if seq[base_number+acceptor_base_length-2:base_number+acceptor_base_length] == 'AG':
 				negative_acceptor_coords[chrom].append(base_number+1)
+			'''
 
 	# return 
 	return negative_donor_coords, negative_acceptor_coords
@@ -379,8 +385,348 @@ print(neg_acceptor_coordinates)
 '''
 
 
+# Next, take the dictionary of lists of positive and negative coords for donor and acceptor
+# regions, and combine the data with the the log odds dictionary
+
+# NOTE: The log odds dictionary has the entire defline as the dictionary key, so watch out
+# the postive and negative coordinate dictinaries have only the chromosome roman numeral as
+# the key
+
+# function combines the positive and negative data with the log odds data
+# stores it as a dictionary
+def combine_log_odds_and_pos_and_neg(log_odds_donor_dict, log_odds_accept_dict, neg_donor_coords, neg_accept_coords, pos_donor_coords, pos_accept_coords):
+	# initialize new dictionary
+	combined_donor_dict = {}
+	combined_accept_dict = {}
+
+	# for every key in the log odds dict, create a key in the combined_dict with
+	# a dictionary for the value
+
+	# donor
+	for key in log_odds_donor_dict.keys():
+		combined_donor_dict[key] = {}
+
+	# acceptor
+	for key in log_odds_accept_dict.keys():
+		combined_accept_dict[key] = {}
+
+	# transfer over the log odds data first
+	# donor
+	for key in combined_donor_dict.keys():
+		# call the relevant dictionary the current chromosome
+		current_log_odds_dict = log_odds_donor_dict[key]
+
+		# iterate through the current chrom log odds dict
+		for window in current_log_odds_dict.keys():
+			log_odds = log_odds_donor_dict[key][window]
+			combined_donor_dict[key][window] = {
+				'log_odds': log_odds,
+				'class': 'NA'
+			}
+
+	# next transfer over acceptor
+	for key in combined_accept_dict.keys():
+		# call the relevant dictionary the current chromosome
+		current_log_odds_dict = log_odds_accept_dict[key]
+
+		# iterate through the current chrom log odds dict
+		for window in current_log_odds_dict.keys():
+			log_odds = log_odds_accept_dict[key][window]
+			combined_accept_dict[key][window] = {
+				'log_odds': log_odds,
+				'class': 'NA'
+			}
+
+	# next transfer over the positive and negative data 
+	# the new dictionary is basically set, just need to change the value of the 'class' key
+	# value pair
+
+	# start with the donor (positive and negative)
+	# iterate through combined donor dictionary
+	for key in combined_donor_dict.keys():
+		key_words = key.split()
+		chrom = key_words[0]
+
+		# store current chromosome dictionary
+		current_dict = combined_donor_dict[key]
+
+		# iterate through all of the dict keys (the window numbers)
+		for window in current_dict.keys():
+			# we need to check if the current window number is contained in the
+			# pos_donor_coords
+			if window in pos_donor_coords[chrom]:
+				# if window is contained, label the window as '+'
+				combined_donor_dict[key][window]['class'] = '+'
+
+			# label the negatives too
+			if window in neg_donor_coords[chrom]:
+				# label as '-'
+				combined_donor_dict[key][window]['class'] = '-'
+
+	# then do the acceptor (pos and neg)
+	for key in combined_accept_dict.keys():
+		key_words = key.split()
+		chrom = key_words[0]
+
+		# store current chromosome dictionary
+		current_dict = combined_accept_dict[key]
+
+		# iterate through all of the dict keys (the window numbers)
+		for window in current_dict.keys():
+			# we need to check if the current window number is contained in the
+			# pos_accept_coords
+			if window in pos_accept_coords[chrom]:
+				# if window is contained, label the window as '+'
+				combined_accept_dict[key][window]['class'] = '+'
+
+			# label the negatives too
+			if window in neg_accept_coords[chrom]:
+				# label as '-'
+				combined_accept_dict[key][window]['class'] = '-'
+
+	# return 
+	return combined_donor_dict, combined_accept_dict
+
+# run 
+
+donor, acceptor = combine_log_odds_and_pos_and_neg(donor_scores, acceptor_scores, neg_donor_coordinates, neg_acceptor_coordinates, donor_coordinates, acceptor_coordinates)
+
+'''
+print(donor)
+print()
+print(acceptor)
+'''
 
 
 
+
+
+
+
+
+
+# CHECKING ACCURACY OF DONOR POSITIVES
+# just loop through all of the donor positives and check if it actually is positive
+
+# checking all donor positives in first chromosome 
+'''
+donor_list = donor_coordinates['I']
+pos_count = 0
+neg_count = 0
+for coord in donor_list:
+	if donor['I 1..150725'][coord]['class'] == '+':
+		pos_count += 1
+	else: neg_count += 1
+
+print(pos_count) # 907
+print(neg_count) # 0
+'''
+
+'''
+# checking donor positives in second chromosome
+donor_list = donor_coordinates['II']
+pos_count = 0
+neg_count = 0
+for coord in donor_list:
+	if donor['II 1..152795'][coord]['class'] == '+':
+		pos_count += 1
+	else: neg_count += 1
+
+print(pos_count) # 853
+print(neg_count) # 0
+'''
+
+'''
+# checking donor positives in chromosome V
+# checking donor positives in second chromosome
+donor_list = donor_coordinates['V']
+pos_count = 0
+neg_count = 0
+for coord in donor_list:
+	if donor['V 1..209242'][coord]['class'] == '+':
+		pos_count += 1
+	else: neg_count += 1
+
+print(pos_count) # 872
+print(neg_count) # 0
+'''
+
+# CHECKING ACCURACY OF DONOR NEGATIVES
+
+# checking chromosome I donor negatives
+'''
+neg_donor_list = neg_donor_coordinates['I']
+pos_count = 0
+neg_count = 0
+for coord in neg_donor_list:
+	if donor['I 1..150725'][coord]['class'] == '+':
+		pos_count += 1
+	if donor['I 1..150725'][coord]['class'] == '-': 
+		neg_count += 1
+
+print(pos_count) # 0 
+print(neg_count) # 6451
+'''
+
+# checking chromosome II donor negatives
+'''
+neg_donor_list = neg_donor_coordinates['II']
+pos_count = 0
+neg_count = 0
+for coord in neg_donor_list:
+	if donor['II 1..152795'][coord]['class'] == '+':
+		pos_count += 1
+	if donor['II 1..152795'][coord]['class'] == '-': 
+		neg_count += 1
+
+print(pos_count) # 0 
+print(neg_count) # 7202
+'''
+
+'''
+# checking chromosome V donor negatives
+neg_donor_list = neg_donor_coordinates['V']
+pos_count = 0
+neg_count = 0
+for coord in neg_donor_list:
+	if donor['V 1..209242'][coord]['class'] == '+':
+		pos_count += 1
+	if donor['V 1..209242'][coord]['class'] == '-': 
+		neg_count += 1
+
+print(pos_count) # 0
+print(neg_count) # 8774
+'''
+
+
+# CHECKING ACCURACY FOR ACCEPTOR POSITIVE
+
+
+# check chromosome I
+'''
+accept_list = acceptor_coordinates['I']
+pos_count = 0
+neg_count = 0
+for coord in accept_list:
+	if acceptor['I 1..150725'][coord]['class'] == '+':
+		pos_count += 1
+	if acceptor['I 1..150725'][coord]['class'] == '-': 
+		neg_count += 1
+
+print(pos_count) # 907
+print(neg_count) # 0
+'''
+
+# check chromosome II
+'''
+accept_list = acceptor_coordinates['II']
+pos_count = 0
+neg_count = 0
+for coord in accept_list:
+	if acceptor['II 1..152795'][coord]['class'] == '+':
+		pos_count += 1
+	if acceptor['II 1..152795'][coord]['class'] == '-': 
+		neg_count += 1
+
+print(pos_count) # 853
+print(neg_count) # 0
+'''
+
+# check chromosome V
+'''
+accept_list = acceptor_coordinates['V']
+pos_count = 0
+neg_count = 0
+for coord in accept_list:
+	if acceptor['V 1..209242'][coord]['class'] == '+':
+		pos_count += 1
+	if acceptor['V 1..209242'][coord]['class'] == '-': 
+		neg_count += 1
+
+print(pos_count) # 872
+print(neg_count) # 0
+'''
+
+# CHECKING ACCURACY FOR NEGATIVE ACCEPTORS
+
+# check chromosome I
+'''
+neg_accept_list = neg_acceptor_coordinates['I']
+pos_count = 0
+neg_count = 0
+for coord in neg_accept_list:
+	if acceptor['I 1..150725'][coord]['class'] == '+':
+		pos_count += 1
+	if acceptor['I 1..150725'][coord]['class'] == '-': 
+		neg_count += 1
+
+print(pos_count) # 0
+print(neg_count) # 6939
+'''
+
+# check chromosome II
+'''
+neg_accept_list = neg_acceptor_coordinates['II']
+pos_count = 0
+neg_count = 0
+for coord in neg_accept_list:
+	if acceptor['II 1..152795'][coord]['class'] == '+':
+		pos_count += 1
+	if acceptor['II 1..152795'][coord]['class'] == '-': 
+		neg_count += 1
+
+print(pos_count) # 0
+print(neg_count) # 7272
+'''
+
+# check chromosome V
+'''
+neg_accept_list = neg_acceptor_coordinates['V']
+pos_count = 0
+neg_count = 0
+for coord in neg_accept_list:
+	if acceptor['V 1..209242'][coord]['class'] == '+':
+		pos_count += 1
+	if acceptor['V 1..209242'][coord]['class'] == '-': 
+		neg_count += 1
+
+print(pos_count) # 0
+print(neg_count) # 9564
+'''
+
+
+# Is there overlap in coordinates in the pos and negative acceptor coord lists?
+'''
+match_count = 0
+for coords in acceptor_coordinates['I']:
+	for coordinate in neg_acceptor_coordinates['I']:
+		if coords == coordinate:
+			match_count += 1
+
+print(match_count) # 821
+'''
+
+# take a look at which sequences matched
+'''
+match_count = 0
+for coords in acceptor_coordinates['I']:
+	for coordinate in neg_acceptor_coordinates['I']:
+		if coords == coordinate:
+			match_count += 1
+			print(coords)
+'''
+
+# print some of these sequences
+# 3640 was a match on chromosome I
+'''
+for defline, seq in mcb185.read_fasta(fasta):
+	defline_words = defline.split()
+	chrom = defline_words[0]
+	if chrom == 'I':
+		print(seq[3639:3639+26]) # ACTCCCCCTTTAACAACCACCCGAGG
+'''
+# sequence does end in a 'AG' so qualifies for negative
+# however, since it is also a pos, it should not MATCH
+# maybe problem with 0-based vs. 1 based indexing?
 
 
