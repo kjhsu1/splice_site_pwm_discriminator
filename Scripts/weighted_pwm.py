@@ -27,8 +27,11 @@
 '''
 - read gff file
 - find all the introns
+
 - first 6nt == splice donor 
 - last 7nt == splice acceptor 
+- ABOVE WAS TRUE, BUT NOW CAN CHANGE # BASES TO EXTRACT
+
 - create 2 dictionaries
 	- one for splice acceptor 
 	- one for splice donor 
@@ -71,7 +74,7 @@ def printer(org, a_or_d, pwm):
 	print('XX')
 	print('//')
 
-def splice_site_pwm(gff, fa, org):
+def splice_site_pwm(gff, fa, donor_bases, acceptor_bases, org):
 	introns = []
 	with gzip.open(gff, 'rt') as fp:
 		for line in fp:
@@ -84,8 +87,8 @@ def splice_site_pwm(gff, fa, org):
 			strand = words[6]
 			introns.append((chrom, start, end, n, strand))
 
-	donor = po_dict_maker(6)
-	acceptor = po_dict_maker(7)
+	donor = po_dict_maker(donor_bases)
+	acceptor = po_dict_maker(acceptor_bases)
 
 	for defline, seq in mcb185.read_fasta(fa):
 		defline_words = defline.split()
@@ -104,8 +107,8 @@ def splice_site_pwm(gff, fa, org):
 				elif intron[4] == '-':
 					intron_seq = mcb185.anti_seq(seq[intron[1]:intron[2]+1])
 				# donor and acceptor seq
-				d_seq = intron_seq[:6]
-				a_seq = intron_seq[-7:]
+				d_seq = intron_seq[:donor_bases]
+				a_seq = intron_seq[-acceptor_bases:]
 				# ONLY PART MODIFIED FOR WEIGHTED VERSION
 				# instead of adding only += 1 for each nucleotide in 
 				# donor and acceptor seq, add += 1 * number of occurance
@@ -125,8 +128,8 @@ def splice_site_pwm(gff, fa, org):
 	printer(org, 'splice donor', donor)
 
 
-# run
-splice_site_pwm(gff, fa, 'C.elegans')
+# running for 9 bases for donor and 25 bases for acceptor
+splice_site_pwm(gff, fa, 9, 25, 'C.elegans')
 
 
 

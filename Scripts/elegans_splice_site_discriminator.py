@@ -13,9 +13,11 @@ import mcb185
 import sys
 import json
 import math
+import gzip
 
 fasta = sys.argv[1]
-pwm_json = sys.argv[2]
+gff = sys.argv[2]
+pwm_json = sys.argv[3]
 
 # initializes dictionary to store frequencies for each base 
 def make_dict(file):
@@ -108,10 +110,14 @@ def log_odds_matrix(fasta, pwm_json):
 	log_odds_acceptor_dict = {}
 
 	# for loop to create the log odds dictionaries
-	# starting out with the donor (can probably abstract this into a function
-	# later)
+	# can probably abstract (don't need two separate for loops for donor and acceptor)
+
+	# get the length of the pwm list to find how many bases the PWM tracks
+	donor_len = len(pwm_json_donor)
+	acceptor_len = len(pwm_json_acceptor)
 	
-	for i in range(6):
+	# donor
+	for i in range(donor_len):
 		# create a dictionary for the base position
 		log_odds_donor_dict[i+1] = {}
 		
@@ -132,7 +138,7 @@ def log_odds_matrix(fasta, pwm_json):
 			log_odds_donor_dict[i+1][base] = math.log10(freq / nt_frequency_dict[base])
 		
 	# do this for the acceptor too
-	for i in range(7):
+	for i in range(acceptor_len):
 		# create a dictionary for the base position
 		log_odds_acceptor_dict[i+1] = {}
 		
@@ -159,14 +165,14 @@ def log_odds_matrix(fasta, pwm_json):
 # produce log odds matrix for donor and acceptor
 log_odds_donor, log_odds_acceptor = log_odds_matrix(fasta, pwm_json)
 
-
+'''
 print(log_odds_donor)
 print()
 print(log_odds_acceptor)
 print()
+'''
 
-
-# window through the whole genome for 6 and 7 base windows
+# window through the whole genome for windows
 # can do each chromosome at a time 
 # need fasta genome file, log_odds scoring matrices for donor+acceptor
 def window_log_score(fasta, log_odds_donor, log_odds_acceptor):
@@ -182,8 +188,8 @@ def window_log_score(fasta, log_odds_donor, log_odds_acceptor):
 
 		# for each fasta seq...
 		# window
-		w_donor = 6
-		w_acceptor = 7
+		w_donor = len(log_odds_donor)
+		w_acceptor = len(log_odds_acceptor)
 
 		# score donor log odds
 		# window for all possible donor sites
@@ -244,11 +250,137 @@ print()
 print(acceptor_scores)
 '''
 
+# Now that we have log odds scores for all of the possible windows...
+# We need to store all of the coordinates of the windows that are the acceptor and donors
 
-# want to check if output is correct
-# manually calculate first number 
-	# need to go to fasta file, look at first 6 bases, 
-	# print out the log odds score matrix for the donor
-		# based on it score the first 6 bases and compare with result
+# iterate through gff, find introns, store donor and acceptor
+# acceptor_base_length is the # of bases you are taking the PWM for the acceptor site
+def extract_positive_coordinates(fasta, gff, acceptor_base_length):
+	# initialize donor and acceptor coordinate dictionaries
+	donor_coords = {}
+	acceptor_coords = {}
+
+	# the log odd scores for all windows are stored as 1-based index
+		# NOTE: log odds scores are all on the positive strand AND they are stored in
+		# different dictionaries for every chromosome
+
+	# create separate lists for every chromosome/defline
+	for defline, seq in mcb185.read_fasta(fasta):
+		defline_words = defline.split()
+		donor_coords[defline_words[0]] = []
+		acceptor_coords[defline_words[0]] = []
+
+	# iterate through gff to store
+	with gzip.open(gff, 'rt') as file:
+		for line in file:
+			words = line.split()
+			if words[1] != 'RNASeq_splice': continue
+			# extract intron information 
+			chrom = words[0]
+			start = int(words[3])
+			end = int(words[4])
+			strand = words[6]
+
+			# find window index for donor and acceptor
+			donor_index = start
+			acceptor_index = end - acceptor_base_length + 1
+
+			# only collecting + strand for now
+			if strand != '+': continue
+
+			# for loop to store in the correct dictionary
+			for key in donor_coords.keys():
+				if key == chrom:
+					donor_coords[key].append(donor_index)
+					acceptor_coords[key].append(acceptor_index)
+
+	return donor_coords, acceptor_coords
+
+# test
+donor_coordinates, acceptor_coordinates = extract_positive_coordinates(fasta, gff, 25)
+
+'''
+print(donor_coordinates)
+print()
+print(acceptor_coordinates)
+'''
+
+# Now we want to collect all of the negatives
+# use the positive acceptor and donor coordinates to look at all windows that ARE NOT
+# acceptor and donor sites -> if those windows have a GT or AG, then add it to the negative
+# coords list
+
+# NOTE: We have to make sure that we check for the 9 bases and 25 bases for both sites
+
+# inputs: donor and acceptor coord dictionary of lists, fasta, and
+# donor and acceptor base length for the PWM 
+def extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, donor_base_length, acceptor_base_length):
+	# initialize donor and acceptor dictionaries of lists 
+	negative_donor_coords = {}
+	negative_acceptor_coords = {} 
+
+	# create separate lists for every chromosome/defline (ie. I, MtDNA, etc)
+	for defline, seq in mcb185.read_fasta(fasta):
+		defline_words = defline.split()
+		negative_donor_coords[defline_words[0]] = []
+		negative_acceptor_coords[defline_words[0]] = []
+
+	# iterate one chromosome at a time 
+	for defline, seq in mcb185.read_fasta(fasta):
+		defline_words = defline.split()
+		chrom = defline_words[0]
+
+		# extract the appropriate donor and acceptor coordinates list for the current
+		# chromosome
+		# Note: these coordinates are 1-based index 
+		current_donor_list = donor_coordinates[chrom]
+		current_acceptor_list = acceptor_coordinates[chrom]
+
+		# window through each base in the seq
+		# donor window first
+		for i in range(len(seq) - donor_base_length +1):
+			# fix to 1-based index
+			base_number = i + 1
+
+			# if base number matches with any of the donor coordinates, skip
+			if base_number in current_donor_list: continue
+
+			# if not in donor list, check if first 2 bases are GT
+			# if yes, store as negative coord
+
+			if seq[base_number - 1:base_number + 1] == 'GT':
+				negative_donor_coords[chrom].append(base_number)
+
+		# after finished with windowing through the donor for the particular chrom,
+		# window through the negative
+		for i in range(len(seq) - acceptor_base_length +1):
+			# fix to 1-based index
+			base_number = i + 1
+
+			# if base number matches with any of the acceptor coordinates, skip
+			if base_number in current_acceptor_list: continue
+
+			# if not in acceptor list, check if first 2 bases are GT
+			# if yes, store as negative coord
+			if seq[base_number+acceptor_base_length-2:base_number+acceptor_base_length] == 'AG':
+				negative_acceptor_coords[chrom].append(base_number+1)
+
+	# return 
+	return negative_donor_coords, negative_acceptor_coords
+
+
+# test
+neg_donor_coordinates, neg_acceptor_coordinates =  extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, 9, 25)
+
+'''
+print(neg_donor_coordinates)
+print()
+print(neg_acceptor_coordinates)
+'''
+
+
+
+
+
 
 
