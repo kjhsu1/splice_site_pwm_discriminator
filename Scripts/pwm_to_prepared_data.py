@@ -495,11 +495,8 @@ donor, acceptor = combine_log_odds_and_pos_and_neg(donor_scores, acceptor_scores
 # first put dictionaries into list
 json_array = [donor, acceptor]
 
-json_data = json.dumps(json_array, indent=4)
-
 # print JSON
-print(json_data)
-
+print(json.dumps(json_array, indent=4))
 
 '''
 print(donor)
