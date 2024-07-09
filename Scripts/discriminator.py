@@ -22,6 +22,49 @@ def json_reader(json_file):
 	return data
 
 labeled_donor_dict, labeled_acceptor_dict = json_reader(json_file)
+#print(labeled_donor_dict, labeled_acceptor_dict, sep='\n\n')
+
+
+
+# CHECKING HOW MANY TOTAL NEG AND POS ARE THERE
+# DONOR
+
+for key in labeled_donor_dict.keys():
+	pos = 0
+	neg = 0
+	for window in labeled_donor_dict[key]:
+		the_class = labeled_donor_dict[key][window]['class']
+		if the_class == '+': 
+			pos += 1
+			# print(f'pos-d {window}')
+		if the_class == '-': 
+			neg += 1
+			# print(f'neg-d {window}')
+
+	print(key)
+	print(pos)
+	print(neg)
+	print()
+
+print('end')
+
+# ACCEPTOR
+for key in labeled_acceptor_dict.keys():
+	pos = 0
+	neg = 0
+	for window in labeled_acceptor_dict[key]:
+		the_class = labeled_acceptor_dict[key][window]['class']
+		if the_class == '+': 
+			pos += 1
+			# print(f'pos-a {window}')
+		if the_class == '-': 
+			neg += 1
+			# print(f'neg-a {window}')
+	print(key)
+	print(pos)
+	print(neg)
+	print()
+
 
 # function takes in labeled donor and acceptor dict, and donor and acceptor thresholds
 # returns list with TP, FP, TN, FN for both donor and acceptor
@@ -156,6 +199,11 @@ def discriminator(labeled_donor_dict, labeled_acceptor_dict, d_threshold, a_thre
 	return [d_TP, d_FP, d_TN, d_FN], [a_TP, a_FP, a_TN, a_FN]
 
 
+# FOR TESTING
+# donor, acceptor = discriminator(labeled_donor_dict, labeled_acceptor_dict, 100, 100)
+# print(donor, acceptor, sep='\n\n')
+
+
 # testing multiple thresholds and making precision recall curve
 def precision_recall_curve(upper_thresh, lower_thresh, step, donor_or_accept):
 	# make 3 separate
@@ -173,13 +221,18 @@ def precision_recall_curve(upper_thresh, lower_thresh, step, donor_or_accept):
 		# data is organized in the order: TP FP TN FN
 		# add info to the list
 		dTP.append(donor_data[0])
-		aTP.append(donor_data[0])
+		aTP.append(acceptor_data[0])
 
 		dFP.append(donor_data[1])
-		aFP.append(donor_data[1])
+		aFP.append(acceptor_data[1])
 
 		dFN.append(donor_data[3])
-		aFN.append(donor_data[3])
+		aFN.append(acceptor_data[3])
+
+	# TESTING
+	#print(dTP, dFP, dFN, sep='\n\n') # max values of each: 2434, 43909, 2547
+	#print(aTP, aFP, aFN, sep='\n\n') # max values of each: 2434, 
+	
 
 	# precision and recall
 	epsilon = 1e-10
@@ -189,9 +242,6 @@ def precision_recall_curve(upper_thresh, lower_thresh, step, donor_or_accept):
 
 	a_precision = [tp / (tp + fp + epsilon) for tp, fp in zip(aTP, aFP)]
 	a_recall = [tp / (tp + fn + epsilon) for tp, fn in zip(aTP, aFN)]
-
-	print(d_precision)
-	print(a_precision)
 
 	# if you want to plot donor
 	if donor_or_accept == 'donor':
@@ -227,4 +277,5 @@ def precision_recall_curve(upper_thresh, lower_thresh, step, donor_or_accept):
 		plt.show()
 
 
-precision_recall_curve(upper_threshold, lower_threshold, 0.1, 'donor')
+precision_recall_curve(upper_threshold, lower_threshold, 0.3, 'donor')
+

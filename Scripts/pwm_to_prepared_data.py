@@ -15,9 +15,17 @@ import json
 import math
 import gzip
 
-fasta = sys.argv[1]
-gff = sys.argv[2]
-pwm_json = sys.argv[3]
+if len(sys.argv) == 4:
+	fasta = sys.argv[1]
+	gff = sys.argv[2]
+	pwm_json = sys.argv[3]
+if len(sys.argv) == 6:
+	fasta = sys.argv[1]
+	test_fasta = sys.argv[2] # fake fasta to test window log score function
+	test_gff = sys.argv[3]
+	gff = sys.argv[4]
+	pwm_json = sys.argv[5]
+
 
 # initializes dictionary to store frequencies for each base 
 def make_dict(file):
@@ -165,12 +173,6 @@ def log_odds_matrix(fasta, pwm_json):
 # produce log odds matrix for donor and acceptor
 log_odds_donor, log_odds_acceptor = log_odds_matrix(fasta, pwm_json)
 
-'''
-print(log_odds_donor)
-print()
-print(log_odds_acceptor)
-print()
-'''
 
 # window through the whole genome for windows
 # can do each chromosome at a time 
@@ -242,20 +244,24 @@ def window_log_score(fasta, log_odds_donor, log_odds_acceptor):
 
 
 # store all donor and acceptor scores into variables (as a dictionary)
+
+# WHEN RUNNING FOR 1PCT GENOME
 donor_scores, acceptor_scores = window_log_score(fasta, log_odds_donor, log_odds_acceptor)
 
-'''
-print(donor_scores)
-print()
-print(acceptor_scores)
-'''
+# TESTING STAGE
+# donor_scores, acceptor_scores = window_log_score(test_fasta, log_odds_donor, log_odds_acceptor)
+#print(donor_scores, acceptor_scores, sep='\n\n\n')
 
 # Now that we have log odds scores for all of the possible windows...
 # We need to store all of the coordinates of the windows that are the acceptor and donors
 
 # iterate through gff, find introns, store donor and acceptor
 # acceptor_base_length is the # of bases you are taking the PWM for the acceptor site
-def extract_positive_coordinates(fasta, gff, acceptor_base_length):
+# can limit which chrom it extracts from with 'lim_chrom' (ex. ['I', 'III'])
+# can also limit total # extracted by specifying range 'lim_num' (ex. ['1 500', '1 1000'])
+	# use a space char to separate start and end coords (1=based index)
+# length of chrom and abs# list MUST MATCH
+def extract_positive_coordinates(fasta, gff, acceptor_base_length, lim_chrom, lim_num):
 	# initialize donor and acceptor coordinate dictionaries
 	donor_coords = {}
 	acceptor_coords = {}
@@ -294,16 +300,113 @@ def extract_positive_coordinates(fasta, gff, acceptor_base_length):
 					donor_coords[key].append(donor_index)
 					acceptor_coords[key].append(acceptor_index)
 
+	# TESTING
+	'''
+	print('before limiting')
+	for key, num in zip(lim_chrom, lim_num):
+		print(key)
+		print(len(donor_coords[key]))
+		print(len(acceptor_coords[key]))
+		print()
+	'''
+
+	# create the chrom limited d and a pos dict if requested
+	if lim_chrom != 'NA':
+		limited_pos_donor_coords = {}
+		limited_pos_acceptor_coords = {}
+
+		for defline, seq in mcb185.read_fasta(fasta):
+			defline_words = defline.split()
+			limited_pos_donor_coords[defline_words[0]] = []
+			limited_pos_acceptor_coords[defline_words[0]] = []
+		# donor
+		for key in donor_coords.keys():
+			if key not in lim_chrom: continue
+			# only take the coords if it is the chrom requested
+			limited_pos_donor_coords[key] = donor_coords[key]
+		# acceptor 
+		for key in acceptor_coords.keys():
+			if key not in lim_chrom: continue
+			# only take the coords if it is the chrom requested
+			limited_pos_acceptor_coords[key] = acceptor_coords[key]
+
+	# if abs number of coord limitation is also requested...
+	if lim_num != 'NA':
+		# donor
+		for key, num in zip(lim_chrom, lim_num):
+			# first need to get rid of repeats
+			limited_pos_donor_coords[key] = list(set(limited_pos_donor_coords[key]))
+
+
+			# slice appropriately
+			words = num.split()
+			# when need only one range
+			if len(words) == 2:
+				start = int(words[0]) - 1 
+				end = int(words[1])
+				limited_pos_donor_coords[key] = limited_pos_donor_coords[key][start:end]
+			'''
+			# when need two ranges 
+			if len(words) == 4:
+				start1 = int(word[0]) - 1
+				end1 = int(words[1])
+				start2 = int(word[2]) - 1
+				end2 = int(word[3]) - 1
+				# coord list 1
+				coordlist1 = limited_pos_donor_coords[key][start1:end1]
+				# coord list 2
+				coordlist2 = limited_pos_donor_coords[key][start2:end2]
+
+				# join both lists
+				limited_pos_donor_coords[key] = coordlist1 + coordlist2
+			'''
+
+
+		# acceptor
+		for key, num in zip(lim_chrom, lim_num):
+			# first need to get rid of repeats 
+			limited_pos_acceptor_coords[key] = list(set(limited_pos_acceptor_coords[key]))
+
+
+			# slice appropriately
+			words = num.split()
+			start = int(words[0]) - 1 
+			end = int(words[1])
+			limited_pos_acceptor_coords[key] = limited_pos_acceptor_coords[key][start:end]
+
+
+	# TESTING
+	'''
+	for key, num in zip(lim_chrom, lim_num):
+		print(key)
+		print(len(limited_pos_donor_coords[key]))
+		print(len(limited_pos_acceptor_coords[key]))
+		print()
+	'''
+
+	# return limited version
+	if lim_chrom != 'NA' or lim_num != 'NA':
+		return limited_pos_donor_coords, limited_pos_acceptor_coords
+
+
 	return donor_coords, acceptor_coords
 
-# test
-donor_coordinates, acceptor_coordinates = extract_positive_coordinates(fasta, gff, 25)
+# FOR REAL GENOME 
+donor_coordinates, acceptor_coordinates = extract_positive_coordinates(fasta, gff, 25, 'NA', 'NA')
 
+# TESTING
 '''
-print(donor_coordinates)
-print()
-print(acceptor_coordinates)
+for key in ['I', 'II']:
+	print(len(donor_coordinates[key]))
+	print(len(acceptor_coordinates[key]))
 '''
+
+
+
+
+# FOR TESTING
+# donor_coordinates, acceptor_coordinates = extract_positive_coordinates(test_fasta, test_gff, 25)
+#print(donor_coordinates, acceptor_coordinates, sep='\n\n\n')
 
 # Now we want to collect all of the negatives
 # use the positive acceptor and donor coordinates to look at all windows that ARE NOT
@@ -313,8 +416,12 @@ print(acceptor_coordinates)
 # NOTE: We have to make sure that we check for the 9 bases and 25 bases for both sites
 
 # inputs: donor and acceptor coord dictionary of lists, fasta, and
-# donor and acceptor base length for the PWM 
-def extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, donor_base_length, acceptor_base_length):
+# donor and acceptor base length for the PWM
+# can limit which chrom it extracts from with 'lim_chrom' (ex. ['I', 'III'])
+# can also limit total # extracted by specifying range 'lim_num' (ex. ['1 500', '1 1000'])
+	# use a space char to separate start and end coords (1=based index)
+# length of chrom and abs# list MUST MATCH
+def extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, donor_base_length, acceptor_base_length, lim_chrom, lim_num):
 	# initialize donor and acceptor dictionaries of lists 
 	negative_donor_coords = {}
 	negative_acceptor_coords = {} 
@@ -358,31 +465,60 @@ def extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, dono
 				if i+1 not in current_acceptor_list:
 					negative_acceptor_coords[chrom].append(i+1)
 
-			'''
-			# fix to 1-based index
-			base_number = i + 1
+		
+	# create the chrom limited d and a negative dict if requested
+	if lim_chrom != 'NA':
+		limited_neg_donor_coords = {}
+		limited_neg_acceptor_coords = {}
 
-			# if base number matches with any of the acceptor coordinates, skip
-			if base_number in current_acceptor_list: continue
+		for defline, seq in mcb185.read_fasta(fasta):
+			defline_words = defline.split()
+			limited_neg_donor_coords[defline_words[0]] = []
+			limited_neg_acceptor_coords[defline_words[0]] = []
+		# donor
+		for key in negative_donor_coords.keys():
+			if key not in lim_chrom: continue
+			# only take the coords if it is the chrom requested
+			limited_neg_donor_coords[key] = negative_donor_coords[key]
+		# acceptor 
+		for key in negative_acceptor_coords.keys():
+			if key not in lim_chrom: continue
+			# only take the coords if it is the chrom requested
+			limited_neg_acceptor_coords[key] = negative_acceptor_coords[key]
 
-			# if not in acceptor list, check if first 2 bases are GT
-			# if yes, store as negative coord
-			if seq[base_number+acceptor_base_length-2:base_number+acceptor_base_length] == 'AG':
-				negative_acceptor_coords[chrom].append(base_number+1)
-			'''
+	# if abs number of coord limitation is also requested...
+	if lim_num != 'NA':
+		# donor
+		for key, num in zip(lim_chrom, lim_num):
+			# slice appropriately
+			words = num.split()
+			start = int(words[0]) - 1 
+			end = int(words[1])
+			limited_neg_donor_coords[key] = limited_neg_donor_coords[key][start:end]
 
-	# return 
+		# acceptor
+		for key, num in zip(lim_chrom, lim_num):
+			# slice appropriately
+			words = num.split()
+			start = int(words[0]) - 1 
+			end = int(words[1])
+			limited_neg_acceptor_coords[key] = limited_neg_acceptor_coords[key][start:end]
+
+
+	# return limited version
+	if lim_chrom != 'NA' or lim_num != 'NA':
+		return limited_neg_donor_coords, limited_neg_acceptor_coords
+
+	# return un-limited version otherwise
 	return negative_donor_coords, negative_acceptor_coords
 
+# FOR REAL GENOME (with chrom+abs # limits)
+neg_donor_coordinates, neg_acceptor_coordinates =  extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, 9, 25, 'NA', 'NA')
 
-# test
-neg_donor_coordinates, neg_acceptor_coordinates =  extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, 9, 25)
-
-'''
-print(neg_donor_coordinates)
-print()
-print(neg_acceptor_coordinates)
-'''
+# FOR TESTING 
+# LIMITING NEGATIVES TO CHROM 'I'
+# neg_donor_coordinates, neg_acceptor_coordinates =  extract_negative_coords(donor_coordinates, acceptor_coordinates, test_fasta, 9, 25, 'I')
+#print(neg_donor_coordinates, neg_acceptor_coordinates, sep='\n\n\n')
 
 
 # Next, take the dictionary of lists of positive and negative coords for donor and acceptor
@@ -487,8 +623,7 @@ def combine_log_odds_and_pos_and_neg(log_odds_donor_dict, log_odds_accept_dict, 
 	# return 
 	return combined_donor_dict, combined_accept_dict
 
-# run 
-
+# FOR REAL GENOME
 donor, acceptor = combine_log_odds_and_pos_and_neg(donor_scores, acceptor_scores, neg_donor_coordinates, neg_acceptor_coordinates, donor_coordinates, acceptor_coordinates)
 
 # convert to JSON
@@ -498,25 +633,13 @@ json_array = [donor, acceptor]
 # print JSON
 print(json.dumps(json_array, indent=4))
 
+
 '''
-print(donor)
-print()
-print(acceptor)
-'''
-
-
-
-
-
-
-
-
-
 # CHECKING ACCURACY OF DONOR POSITIVES
 # just loop through all of the donor positives and check if it actually is positive
 
 # checking all donor positives in first chromosome 
-'''
+
 donor_list = donor_coordinates['I']
 pos_count = 0
 neg_count = 0
@@ -527,9 +650,9 @@ for coord in donor_list:
 
 print(pos_count) # 907
 print(neg_count) # 0
-'''
 
-'''
+
+
 # checking donor positives in second chromosome
 donor_list = donor_coordinates['II']
 pos_count = 0
@@ -541,9 +664,9 @@ for coord in donor_list:
 
 print(pos_count) # 853
 print(neg_count) # 0
-'''
 
-'''
+
+
 # checking donor positives in chromosome V
 # checking donor positives in second chromosome
 donor_list = donor_coordinates['V']
@@ -556,12 +679,12 @@ for coord in donor_list:
 
 print(pos_count) # 872
 print(neg_count) # 0
-'''
+
 
 # CHECKING ACCURACY OF DONOR NEGATIVES
 
 # checking chromosome I donor negatives
-'''
+
 neg_donor_list = neg_donor_coordinates['I']
 pos_count = 0
 neg_count = 0
@@ -573,10 +696,10 @@ for coord in neg_donor_list:
 
 print(pos_count) # 0 
 print(neg_count) # 6451
-'''
+
 
 # checking chromosome II donor negatives
-'''
+
 neg_donor_list = neg_donor_coordinates['II']
 pos_count = 0
 neg_count = 0
@@ -588,9 +711,8 @@ for coord in neg_donor_list:
 
 print(pos_count) # 0 
 print(neg_count) # 7202
-'''
 
-'''
+
 # checking chromosome V donor negatives
 neg_donor_list = neg_donor_coordinates['V']
 pos_count = 0
@@ -603,14 +725,11 @@ for coord in neg_donor_list:
 
 print(pos_count) # 0
 print(neg_count) # 8774
-'''
-
 
 # CHECKING ACCURACY FOR ACCEPTOR POSITIVE
 
-
 # check chromosome I
-'''
+
 accept_list = acceptor_coordinates['I']
 pos_count = 0
 neg_count = 0
@@ -622,10 +741,10 @@ for coord in accept_list:
 
 print(pos_count) # 907
 print(neg_count) # 0
-'''
+
 
 # check chromosome II
-'''
+
 accept_list = acceptor_coordinates['II']
 pos_count = 0
 neg_count = 0
@@ -637,10 +756,10 @@ for coord in accept_list:
 
 print(pos_count) # 853
 print(neg_count) # 0
-'''
+
 
 # check chromosome V
-'''
+
 accept_list = acceptor_coordinates['V']
 pos_count = 0
 neg_count = 0
@@ -652,12 +771,12 @@ for coord in accept_list:
 
 print(pos_count) # 872
 print(neg_count) # 0
-'''
+
 
 # CHECKING ACCURACY FOR NEGATIVE ACCEPTORS
 
 # check chromosome I
-'''
+
 neg_accept_list = neg_acceptor_coordinates['I']
 pos_count = 0
 neg_count = 0
@@ -669,10 +788,10 @@ for coord in neg_accept_list:
 
 print(pos_count) # 0
 print(neg_count) # 6939
-'''
+
 
 # check chromosome II
-'''
+
 neg_accept_list = neg_acceptor_coordinates['II']
 pos_count = 0
 neg_count = 0
@@ -684,10 +803,10 @@ for coord in neg_accept_list:
 
 print(pos_count) # 0
 print(neg_count) # 7272
-'''
+
 
 # check chromosome V
-'''
+
 neg_accept_list = neg_acceptor_coordinates['V']
 pos_count = 0
 neg_count = 0
@@ -699,11 +818,11 @@ for coord in neg_accept_list:
 
 print(pos_count) # 0
 print(neg_count) # 9564
-'''
+
 
 
 # Is there overlap in coordinates in the pos and negative acceptor coord lists?
-'''
+
 match_count = 0
 for coords in acceptor_coordinates['I']:
 	for coordinate in neg_acceptor_coordinates['I']:
@@ -711,29 +830,30 @@ for coords in acceptor_coordinates['I']:
 			match_count += 1
 
 print(match_count) # 821
-'''
+
 
 # take a look at which sequences matched
-'''
+
 match_count = 0
 for coords in acceptor_coordinates['I']:
 	for coordinate in neg_acceptor_coordinates['I']:
 		if coords == coordinate:
 			match_count += 1
 			print(coords)
-'''
+
 
 # print some of these sequences
 # 3640 was a match on chromosome I
-'''
+
 for defline, seq in mcb185.read_fasta(fasta):
 	defline_words = defline.split()
 	chrom = defline_words[0]
 	if chrom == 'I':
 		print(seq[3639:3639+26]) # ACTCCCCCTTTAACAACCACCCGAGG
-'''
+
 # sequence does end in a 'AG' so qualifies for negative
 # however, since it is also a pos, it should not MATCH
 # maybe problem with 0-based vs. 1 based indexing?
 
+'''
 
