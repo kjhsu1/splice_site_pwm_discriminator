@@ -107,8 +107,8 @@ def splice_site_pwm(gff, fa, donor_bases, acceptor_bases, org):
 				elif intron[4] == '-':
 					intron_seq = mcb185.anti_seq(seq[intron[1]:intron[2]+1])
 				# donor and acceptor seq
-				d_seq = intron_seq[:donor_bases]
-				a_seq = intron_seq[-acceptor_bases:]
+				d_seq = intron_seq[:donor_bases].upper()
+				a_seq = intron_seq[-acceptor_bases:].upper()
 				# ONLY PART MODIFIED FOR WEIGHTED VERSION
 				# instead of adding only += 1 for each nucleotide in 
 				# donor and acceptor seq, add += 1 * number of occurance

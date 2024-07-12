@@ -2,6 +2,7 @@
 
 import json
 import sys
+import math
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -28,7 +29,7 @@ labeled_donor_dict, labeled_acceptor_dict = json_reader(json_file)
 
 # CHECKING HOW MANY TOTAL NEG AND POS ARE THERE
 # DONOR
-
+'''
 for key in labeled_donor_dict.keys():
 	pos = 0
 	neg = 0
@@ -64,7 +65,7 @@ for key in labeled_acceptor_dict.keys():
 	print(pos)
 	print(neg)
 	print()
-
+'''
 
 # function takes in labeled donor and acceptor dict, and donor and acceptor thresholds
 # returns list with TP, FP, TN, FN for both donor and acceptor
@@ -277,5 +278,65 @@ def precision_recall_curve(upper_thresh, lower_thresh, step, donor_or_accept):
 		plt.show()
 
 
-precision_recall_curve(upper_threshold, lower_threshold, 0.3, 'donor')
+# finds best threshold within a range
+def best_threshold_finder(upper_thresh, lower_thresh, step):
+	# store best threshold
+	best_d_threshold = 0
+	best_a_threshold = 0
+
+	d_max_F1 = 0
+	a_max_F1 = 0
+	
+	for i in np.arange(lower_thresh, upper_thresh, step):
+		donor_data, acceptor_data = discriminator(labeled_donor_dict, labeled_acceptor_dict, i, i)
+
+		# data is organized in the order: TP FP TN FN
+		dtp = donor_data[0]
+		dfp = donor_data[1]
+		dfn = donor_data[3]
+
+		atp = acceptor_data[0]
+		afp = acceptor_data[1]
+		afn = acceptor_data[3]
+
+		print(dtp, dfp, dfn)
+		print(atp, afp, afn)
+		print()
+
+		# calculate precision and recall 
+		epsilon = 1e-10
+
+		d_precision = dtp / (dtp + dfp + epsilon)
+		d_recall = dtp / (dtp + dfn + epsilon)
+
+		a_precision = atp / (atp + afp + epsilon)
+		a_recall = atp / (atp + afn + epsilon)
+
+		# calculate F1
+		epsilon = 1e-10
+		d_F1 = 2 * ((d_precision*d_recall)/(d_precision + d_recall + epsilon))
+		a_F1 = 2 * ((a_precision*a_recall)/(a_precision + a_recall + epsilon))
+
+		print(f'threshold: {i} {d_F1} {a_F1}')
+		print()
+
+		if d_F1 > d_max_F1:
+			d_max_F1 = d_F1
+			best_d_threshold = i
+		if a_F1 > a_max_F1:
+			a_max_F1 = a_F1
+			best_a_threshold = i
+
+
+	print(f'Best Donor F1 Score: {d_max_F1}')
+	print(f'Best Acceptor F1 Score: {a_max_F1}')
+
+	return best_d_threshold, best_a_threshold
+
+
+best_d_threshold, best_a_threshold = best_threshold_finder(upper_threshold, lower_threshold, 0.3)
+
+print(f'Best Donor Threshold: {best_d_threshold}')
+print(f'Best Acceptor Threshold: {best_d_threshold}')
+precision_recall_curve(upper_threshold, lower_threshold, 0.5, 'acceptor')
 

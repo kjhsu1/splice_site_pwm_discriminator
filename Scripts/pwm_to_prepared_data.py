@@ -261,7 +261,7 @@ donor_scores, acceptor_scores = window_log_score(fasta, log_odds_donor, log_odds
 # can also limit total # extracted by specifying range 'lim_num' (ex. ['1 500', '1 1000'])
 	# use a space char to separate start and end coords (1=based index)
 # length of chrom and abs# list MUST MATCH
-def extract_positive_coordinates(fasta, gff, acceptor_base_length, lim_chrom, lim_num):
+def extract_positive_coordinates(fasta, gff, acceptor_base_length, d_lim_chrom, d_lim_num, a_lim_chrom, a_lim_num):
 	# initialize donor and acceptor coordinate dictionaries
 	donor_coords = {}
 	acceptor_coords = {}
@@ -311,29 +311,36 @@ def extract_positive_coordinates(fasta, gff, acceptor_base_length, lim_chrom, li
 	'''
 
 	# create the chrom limited d and a pos dict if requested
-	if lim_chrom != 'NA':
+	# donor
+	if d_lim_chrom != 'NA':
 		limited_pos_donor_coords = {}
-		limited_pos_acceptor_coords = {}
 
 		for defline, seq in mcb185.read_fasta(fasta):
 			defline_words = defline.split()
 			limited_pos_donor_coords[defline_words[0]] = []
-			limited_pos_acceptor_coords[defline_words[0]] = []
 		# donor
 		for key in donor_coords.keys():
-			if key not in lim_chrom: continue
+			if key not in d_lim_chrom: continue
 			# only take the coords if it is the chrom requested
 			limited_pos_donor_coords[key] = donor_coords[key]
+	# acceptor
+	if a_lim_chrom != 'NA':
+		limited_pos_acceptor_coords = {}
+
+		for defline, seq in mcb185.read_fasta(fasta):
+			defline_words = defline.split()
+			limited_pos_acceptor_coords[defline_words[0]] = []
 		# acceptor 
 		for key in acceptor_coords.keys():
-			if key not in lim_chrom: continue
+			if key not in a_lim_chrom: continue
 			# only take the coords if it is the chrom requested
 			limited_pos_acceptor_coords[key] = acceptor_coords[key]
 
 	# if abs number of coord limitation is also requested...
-	if lim_num != 'NA':
+	# donor
+	if d_lim_num != 'NA':
 		# donor
-		for key, num in zip(lim_chrom, lim_num):
+		for key, num in zip(d_lim_chrom, d_lim_num):
 			# first need to get rid of repeats
 			limited_pos_donor_coords[key] = list(set(limited_pos_donor_coords[key]))
 
@@ -345,13 +352,13 @@ def extract_positive_coordinates(fasta, gff, acceptor_base_length, lim_chrom, li
 				start = int(words[0]) - 1 
 				end = int(words[1])
 				limited_pos_donor_coords[key] = limited_pos_donor_coords[key][start:end]
-			'''
+			
 			# when need two ranges 
 			if len(words) == 4:
-				start1 = int(word[0]) - 1
+				start1 = int(words[0]) - 1
 				end1 = int(words[1])
-				start2 = int(word[2]) - 1
-				end2 = int(word[3]) - 1
+				start2 = int(words[2]) - 1
+				end2 = int(words[3])
 				# coord list 1
 				coordlist1 = limited_pos_donor_coords[key][start1:end1]
 				# coord list 2
@@ -359,20 +366,37 @@ def extract_positive_coordinates(fasta, gff, acceptor_base_length, lim_chrom, li
 
 				# join both lists
 				limited_pos_donor_coords[key] = coordlist1 + coordlist2
-			'''
 
-
+	# if abs number of coord limitation is also requested...
+	# acceptor
+	if a_lim_num != 'NA':
 		# acceptor
-		for key, num in zip(lim_chrom, lim_num):
-			# first need to get rid of repeats 
+		for key, num in zip(a_lim_chrom, a_lim_num):
+			# first need to get rid of repeats
 			limited_pos_acceptor_coords[key] = list(set(limited_pos_acceptor_coords[key]))
 
 
 			# slice appropriately
 			words = num.split()
-			start = int(words[0]) - 1 
-			end = int(words[1])
-			limited_pos_acceptor_coords[key] = limited_pos_acceptor_coords[key][start:end]
+			# when need only one range
+			if len(words) == 2:
+				start = int(words[0]) - 1 
+				end = int(words[1])
+				limited_pos_acceptor_coords[key] = limited_pos_acceptor_coords[key][start:end]
+			
+			# when need two ranges 
+			if len(words) == 4:
+				start1 = int(words[0]) - 1
+				end1 = int(words[1])
+				start2 = int(words[2]) - 1
+				end2 = int(words[3])
+				# coord list 1
+				coordlist1 = limited_pos_acceptor_coords[key][start1:end1]
+				# coord list 2
+				coordlist2 = limited_pos_acceptor_coords[key][start2:end2]
+
+				# join both lists
+				limited_pos_acceptor_coords[key] = coordlist1 + coordlist2
 
 
 	# TESTING
@@ -384,21 +408,43 @@ def extract_positive_coordinates(fasta, gff, acceptor_base_length, lim_chrom, li
 		print()
 	'''
 
-	# return limited version
-	if lim_chrom != 'NA' or lim_num != 'NA':
+	# return limited versions
+	if d_lim_chrom != 'NA' and a_lim_chrom != 'NA':
 		return limited_pos_donor_coords, limited_pos_acceptor_coords
 
+	if d_lim_chrom == 'NA' and a_lim_chrom != 'NA':
+		return donor_coords, limited_pos_acceptor_coords
+
+	if d_lim_chrom != 'NA' and a_lim_chrom == 'NA':
+		return limited_pos_donor_coords, acceptor_coords
 
 	return donor_coords, acceptor_coords
 
-# FOR REAL GENOME 
-donor_coordinates, acceptor_coordinates = extract_positive_coordinates(fasta, gff, 25, 'NA', 'NA')
+# FOR REAL GENOME
+
+d_lim_chrom = ['I', 'II', 'III', 'IV', 'V', 'X']
+d_lim_num = ['1 256 385 512', '1 254 382 508', '1 120 181 240', '1 194 292 388', '1 270 406 540', '1 174 262 348']
+a_lim_chrom = ['I', 'II', 'III', 'IV', 'V', 'X']
+a_lim_num = ['1 238 358 476', '1 254 382 508', '1 122 184 244', '1 174 262 348', '1 244 367 488', '1 160 241 320']
+
+'''
+d_lim_chrom = 'NA'
+d_lim_num = 'NA'
+a_lim_chrom = 'NA'
+a_lim_num = 'NA'
+'''
+
+donor_coordinates, acceptor_coordinates = extract_positive_coordinates(fasta, gff, 25, d_lim_chrom, d_lim_num, a_lim_chrom, a_lim_num)
+
 
 # TESTING
 '''
-for key in ['I', 'II']:
-	print(len(donor_coordinates[key]))
-	print(len(acceptor_coordinates[key]))
+print('positive coords')
+for key in ['I', 'II', 'III', 'IV', 'V']:
+	print(f'donor {key} {len(donor_coordinates[key])}')
+	print(f' acceptor {key} {len(acceptor_coordinates[key])}')
+print()
+print()
 '''
 
 
@@ -421,7 +467,7 @@ for key in ['I', 'II']:
 # can also limit total # extracted by specifying range 'lim_num' (ex. ['1 500', '1 1000'])
 	# use a space char to separate start and end coords (1=based index)
 # length of chrom and abs# list MUST MATCH
-def extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, donor_base_length, acceptor_base_length, lim_chrom, lim_num):
+def extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, donor_base_length, acceptor_base_length, d_lim_chrom, d_lim_num, a_lim_chrom, a_lim_num):
 	# initialize donor and acceptor dictionaries of lists 
 	negative_donor_coords = {}
 	negative_acceptor_coords = {} 
@@ -467,53 +513,126 @@ def extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, dono
 
 		
 	# create the chrom limited d and a negative dict if requested
-	if lim_chrom != 'NA':
+	# donor
+	if d_lim_chrom != 'NA':
 		limited_neg_donor_coords = {}
-		limited_neg_acceptor_coords = {}
 
 		for defline, seq in mcb185.read_fasta(fasta):
 			defline_words = defline.split()
 			limited_neg_donor_coords[defline_words[0]] = []
-			limited_neg_acceptor_coords[defline_words[0]] = []
-		# donor
 		for key in negative_donor_coords.keys():
-			if key not in lim_chrom: continue
+			if key not in d_lim_chrom: continue
 			# only take the coords if it is the chrom requested
 			limited_neg_donor_coords[key] = negative_donor_coords[key]
+
+	# acceptor
+	if a_lim_chrom != 'NA':
+		limited_neg_acceptor_coords = {}
+
+		for defline, seq in mcb185.read_fasta(fasta):
+			defline_words = defline.split()
+			limited_neg_acceptor_coords[defline_words[0]] = []
 		# acceptor 
 		for key in negative_acceptor_coords.keys():
-			if key not in lim_chrom: continue
+			if key not in a_lim_chrom: continue
 			# only take the coords if it is the chrom requested
 			limited_neg_acceptor_coords[key] = negative_acceptor_coords[key]
 
 	# if abs number of coord limitation is also requested...
-	if lim_num != 'NA':
+	# donor
+	if d_lim_num != 'NA':
 		# donor
-		for key, num in zip(lim_chrom, lim_num):
+		for key, num in zip(d_lim_chrom, d_lim_num):
+			# first need to get rid of repeats
+			limited_neg_donor_coords[key] = list(set(limited_neg_donor_coords[key]))
+
+
 			# slice appropriately
 			words = num.split()
-			start = int(words[0]) - 1 
-			end = int(words[1])
-			limited_neg_donor_coords[key] = limited_neg_donor_coords[key][start:end]
+			# when need only one range
+			if len(words) == 2:
+				start = int(words[0]) - 1 
+				end = int(words[1])
+				limited_neg_donor_coords[key] = limited_neg_donor_coords[key][start:end]
+			
+			# when need two ranges 
+			if len(words) == 4:
+				start1 = int(words[0]) - 1
+				end1 = int(words[1])
+				start2 = int(words[2]) - 1
+				end2 = int(words[3])
+				# coord list 1
+				coordlist1 = limited_neg_donor_coords[key][start1:end1]
+				# coord list 2
+				coordlist2 = limited_neg_donor_coords[key][start2:end2]
 
+				# join both lists
+				limited_neg_donor_coords[key] = coordlist1 + coordlist2
+
+	# if abs number of coord limitation is also requested...
+	# acceptor
+	if a_lim_num != 'NA':
 		# acceptor
-		for key, num in zip(lim_chrom, lim_num):
+		for key, num in zip(a_lim_chrom, a_lim_num):
+			# first need to get rid of repeats
+			limited_neg_acceptor_coords[key] = list(set(limited_neg_acceptor_coords[key]))
+
+
 			# slice appropriately
 			words = num.split()
-			start = int(words[0]) - 1 
-			end = int(words[1])
-			limited_neg_acceptor_coords[key] = limited_neg_acceptor_coords[key][start:end]
+			# when need only one range
+			if len(words) == 2:
+				start = int(words[0]) - 1 
+				end = int(words[1])
+				limited_neg_acceptor_coords[key] = limited_neg_acceptor_coords[key][start:end]
+			
+			# when need two ranges 
+			if len(words) == 4:
+				start1 = int(words[0]) - 1
+				end1 = int(words[1])
+				start2 = int(words[2]) - 1
+				end2 = int(words[3])
+				# coord list 1
+				coordlist1 = limited_neg_acceptor_coords[key][start1:end1]
+				# coord list 2
+				coordlist2 = limited_neg_acceptor_coords[key][start2:end2]
+
+				# join both lists
+				limited_neg_acceptor_coords[key] = coordlist1 + coordlist2
 
 
-	# return limited version
-	if lim_chrom != 'NA' or lim_num != 'NA':
+	# return limited versions
+	if d_lim_chrom != 'NA' and a_lim_chrom != 'NA':
 		return limited_neg_donor_coords, limited_neg_acceptor_coords
+
+	if d_lim_chrom == 'NA' and a_lim_chrom != 'NA':
+		return negative_donor_coords, limited_neg_acceptor_coords
+
+	if d_lim_chrom != 'NA' and a_lim_chrom == 'NA':
+		return limited_neg_donor_coords, negative_acceptor_coords
 
 	# return un-limited version otherwise
 	return negative_donor_coords, negative_acceptor_coords
 
 # FOR REAL GENOME (with chrom+abs # limits)
-neg_donor_coordinates, neg_acceptor_coordinates =  extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, 9, 25, 'NA', 'NA')
+
+'''
+d_lim_chrom = ['I', 'II', 'III', 'IV', 'V', 'X']
+d_lim_num = ['129 512', '128 508', '61 240', '98 388', '136 540', '88 348']
+a_lim_chrom = ['I', 'II', 'III', 'IV', 'V', 'X']
+a_lim_num = ['120 476', '128 508', '62 244', '88 348', '123 488', '81 320']
+'''
+
+neg_donor_coordinates, neg_acceptor_coordinates =  extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, 9, 25, d_lim_chrom, d_lim_num, a_lim_chrom, a_lim_num)
+
+
+# TESTING
+'''
+print('neg coords')
+for key in ['I', 'II', 'III', 'IV', 'V']:
+	print(f'donor {key} {len(neg_donor_coordinates[key])}')
+	print(f' acceptor {key} {len(neg_acceptor_coordinates[key])}')
+'''
 
 # FOR TESTING 
 # LIMITING NEGATIVES TO CHROM 'I'
