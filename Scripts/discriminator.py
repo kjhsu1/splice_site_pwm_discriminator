@@ -23,8 +23,7 @@ def json_reader(json_file):
 	return data
 
 labeled_donor_dict, labeled_acceptor_dict = json_reader(json_file)
-#print(labeled_donor_dict, labeled_acceptor_dict, sep='\n\n')
-
+# print(labeled_donor_dict, labeled_acceptor_dict, sep='\n\n')
 
 
 # CHECKING HOW MANY TOTAL NEG AND POS ARE THERE
@@ -293,14 +292,16 @@ def best_threshold_finder(upper_thresh, lower_thresh, step):
 		# data is organized in the order: TP FP TN FN
 		dtp = donor_data[0]
 		dfp = donor_data[1]
+		dtn = donor_data[2]
 		dfn = donor_data[3]
 
 		atp = acceptor_data[0]
 		afp = acceptor_data[1]
+		atn = acceptor_data[2]
 		afn = acceptor_data[3]
 
-		print(dtp, dfp, dfn)
-		print(atp, afp, afn)
+		print(dtp, dfp, dtn, dfn)
+		print(atp, afp, atn, afn)
 		print()
 
 		# calculate precision and recall 
@@ -339,4 +340,3 @@ best_d_threshold, best_a_threshold = best_threshold_finder(upper_threshold, lowe
 print(f'Best Donor Threshold: {best_d_threshold}')
 print(f'Best Acceptor Threshold: {best_d_threshold}')
 precision_recall_curve(upper_threshold, lower_threshold, 0.5, 'acceptor')
-

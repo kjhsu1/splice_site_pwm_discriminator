@@ -46,6 +46,7 @@ def genome_count(fasta):
 	# iterate through each seq portion of the fasta file
 	for defline, seq in mcb185.read_fasta(fasta):
 		for nt in seq:
+			nt = nt.upper()
 			if nt == 'A':
 				dictionary["A"] += 1
 			if nt == 'C':
@@ -197,7 +198,7 @@ def window_log_score(fasta, log_odds_donor, log_odds_acceptor):
 		# window for all possible donor sites
 		for i in range(len(seq) -w_donor +1):
 			# extract current window seq
-			window_seq = seq[i:i+w_donor]
+			window_seq = seq[i:i+w_donor].upper()
 
 			# using log_odds_donor dictionary to score the window
 			# initalize score var
@@ -220,7 +221,7 @@ def window_log_score(fasta, log_odds_donor, log_odds_acceptor):
 		# window for all possible acceptor sites
 		for i in range(len(seq) -w_acceptor +1):
 			# extract current window seq
-			window_seq = seq[i:i+w_acceptor]
+			window_seq = seq[i:i+w_acceptor].upper()
 
 			# using log_odds_donor dictionary to score the window
 			# initalize score var
@@ -421,18 +422,19 @@ def extract_positive_coordinates(fasta, gff, acceptor_base_length, d_lim_chrom, 
 	return donor_coords, acceptor_coords
 
 # FOR REAL GENOME
-
+'''
 d_lim_chrom = ['I', 'II', 'III', 'IV', 'V', 'X']
 d_lim_num = ['1 256 385 512', '1 254 382 508', '1 120 181 240', '1 194 292 388', '1 270 406 540', '1 174 262 348']
 a_lim_chrom = ['I', 'II', 'III', 'IV', 'V', 'X']
 a_lim_num = ['1 238 358 476', '1 254 382 508', '1 122 184 244', '1 174 262 348', '1 244 367 488', '1 160 241 320']
-
 '''
+
+
 d_lim_chrom = 'NA'
 d_lim_num = 'NA'
 a_lim_chrom = 'NA'
 a_lim_num = 'NA'
-'''
+
 
 donor_coordinates, acceptor_coordinates = extract_positive_coordinates(fasta, gff, 25, d_lim_chrom, d_lim_num, a_lim_chrom, a_lim_num)
 
@@ -501,7 +503,7 @@ def extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, dono
 			# if not in donor list, check if first 2 bases are GT
 			# if yes, store as negative coord
 
-			if seq[base_number - 1:base_number + 1] == 'GT':
+			if seq[base_number - 1:base_number + 1].upper() == 'GT':
 				negative_donor_coords[chrom].append(base_number)
 
 		# after finished with windowing through the donor for the particular chrom,
