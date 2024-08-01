@@ -24,6 +24,7 @@ def extract_positive_coordinates(fasta, gff, acceptor_base_length, d_lim_chrom, 
 		# different dictionaries for every chromosome
 
 	# create separate lists for every chromosome/defline
+	# may want to consider doing gzip.open instead since we don't need use 'seq'
 	for defline, seq in mcb185.read_fasta(fasta):
 		defline_words = defline.split()
 		donor_coords[defline_words[0]] = []

@@ -234,7 +234,7 @@ def precision_recall_curve(upper_thresh, lower_thresh, step, donor_or_accept):
 	#print(aTP, aFP, aFN, sep='\n\n') # max values of each: 2434, 
 	
 
-	# precision and recall
+	# precision and recal
 	epsilon = 1e-10
 
 	d_precision = [tp / (tp + fp + epsilon) for tp, fp in zip(dTP, dFP)]

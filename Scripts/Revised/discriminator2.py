@@ -2,6 +2,9 @@ import sys
 import mcb185
 import json
 import math
+import random
+import numpy as np
+import matplotlib.pyplot as plt
 
 genome_fasta = sys.argv[1]
 d_fasta = sys.argv[2]
@@ -189,15 +192,107 @@ def fasta_to_list(fasta, classification, d_or_n):
 		the_list.append(Seq(seq, log_odd, classification, d_or_n))
 	return the_list
 
-d_list = fasta_to_list(d_fasta, '+', 'd')
-'''
-for d in d_list:
-	print(d.sequence)
-	print(d.log_odd)
-	print(d.classification)
-	print(d.d_or_n)
-	print()
-	print()
-'''
+all_d = fasta_to_list(d_fasta, '+', 'd') + fasta_to_list(n_d_fasta, '-', 'd')
+all_a = fasta_to_list(a_fasta, '+', 'a') + fasta_to_list(n_a_fasta, '-', 'a')
+
+random.shuffle(all_d)
+random.shuffle(all_a)
+
+# split data 
+training_ratio = 0.7 
+validation_ratio = 0.15
+test_ratio = 0.15
+
+d_train_size = int(len(all_d) * training_ratio)
+d_validation_size = int(len(all_d) * validation_ratio)
+d_test_size = len(all_d) - d_train_size - d_validation_size
+
+a_train_size = int(len(all_a) * training_ratio)
+a_validation_size = int(len(all_a) * validation_ratio)
+a_test_size = len(all_a) - a_train_size - a_validation_size
+
+# the split data
+d_train = all_d[:d_train_size]
+d_validation = all_d[d_train_size:d_train_size+d_validation_size]
+d_test = all_d[d_train_size+d_validation_size:]
+
+a_train = all_a[:a_train_size]
+a_validation = all_a[a_train_size:a_train_size+a_validation_size]
+a_test = all_a[a_train_size+a_validation_size:]
+
+
+
+# the_list = training, validation, or test list of Seq objects
+# return TP, TN, FP, FN 
+def discriminator(the_list, threshold):
+	tp = 0
+	tn = 0
+	fp = 0
+	fn = 0
+	epsilon = 1e-10
+
+	for seq in the_list:
+		if seq.discriminate(threshold) == 'TP': tp += 1
+		if seq.discriminate(threshold) == 'TN': tn += 1
+		if seq.discriminate(threshold) == 'FP': fp += 1
+		if seq.discriminate(threshold) == 'FN': fn += 1
+
+	accuracy = (tp+tn) / (tp+tn+fp+fn+epsilon)
+
+	return accuracy
+
+def graph(list1, list2, upper, lower, step, title):
+	if list2 == None:
+		thres_list = []
+		acc_list = []
+		for i in np.arange(lower, upper, step):
+			acc_list.append(discriminator(list1, i))
+			thres_list.append(i)
+
+		plt.plot(thres_list, acc_list, marker='o')
+		plt.title(title)
+		plt.xlabel('Threshold')
+		plt.ylabel('Accuracy')
+		plt.ylim([0,1])
+		plt.show()
+	else:
+		t_list = []
+		acc_list1 = []
+		acc_list2 = []
+
+		for i in np.arange(lower, upper, step):
+			acc_list1.append(discriminator(list1, i))
+			acc_list2.append(discriminator(list2, i))
+			t_list.append(i)
+
+		plt.plot(t_list, acc_list1, marker='o', label='Training')
+		plt.plot(t_list, acc_list2, marker='o', label='Validation')
+
+		plt.title(title)
+		plt.xlabel("Threshold")
+		plt.ylabel("Accuracy")
+		plt.ylim([0,1])
+		plt.legend()
+		plt.show()
+
+
+def best_thres(the_list, upper, lower, step):
+	best_accuracy = 0
+	best_thres = 0
+	for i in np.arange(lower, upper, step):
+		if discriminator(the_list, i) > best_accuracy:
+			best_accuracy = discriminator(the_list, i)
+			best_thres = i
+	return best_thres, best_accuracy
+
+
+# print(best_thres(d_train, 10, -10, 0.01))
+
+# graph(d_train, 10, -10, 0.1, "Donor Training Set Accuracy")
+
+graph(d_train, d_validation, 10, -10, 0.1, "Donor Train and Validation Set Accuracy Over Thresholds")
+
+
+
 
 
