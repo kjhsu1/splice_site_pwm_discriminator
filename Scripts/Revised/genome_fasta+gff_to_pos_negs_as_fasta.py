@@ -4,8 +4,6 @@ import mcb185
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
-from tensorflow.keras.models import Sequential # assuming this means
-from tensorflow.keras.layers import Dense, Dropout, Activation
 from Bio import SeqIO
 
 fasta = sys.argv[1]
@@ -29,7 +27,6 @@ def extract_positive_coordinates(fasta, gff, acceptor_base_length, d_lim_chrom, 
 		defline_words = defline.split()
 		donor_coords[defline_words[0]] = []
 		acceptor_coords[defline_words[0]] = []
-
 	# iterate through gff to store
 	with gzip.open(gff, 'rt') as file:
 		for line in file:
@@ -53,16 +50,6 @@ def extract_positive_coordinates(fasta, gff, acceptor_base_length, d_lim_chrom, 
 				if key == chrom:
 					donor_coords[key].append(donor_index)
 					acceptor_coords[key].append(acceptor_index)
-
-	# TESTING
-	'''
-	print('before limiting')
-	for key, num in zip(lim_chrom, lim_num):
-		print(key)
-		print(len(donor_coords[key]))
-		print(len(acceptor_coords[key]))
-		print()
-	'''
 
 	# create the chrom limited d and a pos dict if requested
 	# donor
@@ -179,7 +166,7 @@ def extract_positive_coordinates(fasta, gff, acceptor_base_length, d_lim_chrom, 
 
 	return donor_coords, acceptor_coords
 
-def extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, donor_base_length, acceptor_base_length, d_lim_chrom, d_lim_num, a_lim_chrom, a_lim_num):
+def extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, donor_base_length, acceptor_base_length, d_lim_num, a_lim_num):
 	# initialize donor and acceptor dictionaries of lists 
 	negative_donor_coords = {}
 	negative_acceptor_coords = {} 
@@ -194,6 +181,7 @@ def extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, dono
 	for defline, seq in mcb185.read_fasta(fasta):
 		defline_words = defline.split()
 		chrom = defline_words[0]
+		if chrom == 'MtDNA': break
 
 		# extract the appropriate donor and acceptor coordinates list for the current
 		# chromosome
@@ -203,145 +191,51 @@ def extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, dono
 
 		# window through each base in the seq
 		# donor window first
+		count = 0
 		for i in range(len(seq) - donor_base_length +1):
+			if count == int(d_lim_num / 6): break
 			# fix to 1-based index
 			base_number = i + 1
-
-			# if base number matches with any of the donor coordinates, skip
-			if base_number in current_donor_list: continue
-
 			# if not in donor list, check if first 2 bases are GT
 			# if yes, store as negative coord
 
 			if seq[base_number - 1:base_number + 1].upper() == 'GT':
+				if base_number in current_donor_list: continue
+				count += 1
 				negative_donor_coords[chrom].append(base_number)
 
 		# after finished with windowing through the donor for the particular chrom,
-		# window through the negative
+		# window through the acceptor
+		count = 0
 		for i in range(len(seq) - acceptor_base_length +1):
-			if seq[i+acceptor_base_length-2:i+acceptor_base_length] == 'AG':
+			if count == int(a_lim_num / 6): break
+			if seq[i+acceptor_base_length-2:i+acceptor_base_length].upper() == 'AG':
 				if i+1 not in current_acceptor_list:
+					count += 1
 					negative_acceptor_coords[chrom].append(i+1)
 
-		
-	# create the chrom limited d and a negative dict if requested
-	# donor
-	if d_lim_chrom != 'NA':
-		limited_neg_donor_coords = {}
-
-		for defline, seq in mcb185.read_fasta(fasta):
-			defline_words = defline.split()
-			limited_neg_donor_coords[defline_words[0]] = []
-		for key in negative_donor_coords.keys():
-			if key not in d_lim_chrom: continue
-			# only take the coords if it is the chrom requested
-			limited_neg_donor_coords[key] = negative_donor_coords[key]
-			limited_neg_donor_coords[key] = list(set(limited_neg_donor_coords[key]))
-
-	# acceptor
-	if a_lim_chrom != 'NA':
-		limited_neg_acceptor_coords = {}
-
-		for defline, seq in mcb185.read_fasta(fasta):
-			defline_words = defline.split()
-			limited_neg_acceptor_coords[defline_words[0]] = []
-		# acceptor 
-		for key in negative_acceptor_coords.keys():
-			if key not in a_lim_chrom: continue
-			# only take the coords if it is the chrom requested
-			limited_neg_acceptor_coords[key] = negative_acceptor_coords[key]
-			limited_neg_acceptor_coords[key] = list(set(limited_neg_acceptor_coords[key]))
-
-	# if abs number of coord limitation is also requested...
-	# donor
-	if d_lim_num != 'NA':
-		# donor
-		for key, num in zip(d_lim_chrom, d_lim_num):
-			# first need to get rid of repeats
-			limited_neg_donor_coords[key] = list(set(limited_neg_donor_coords[key]))
-
-
-			# slice appropriately
-			words = num.split()
-			# when need only one range
-			if len(words) == 2:
-				start = int(words[0]) - 1 
-				end = int(words[1])
-				limited_neg_donor_coords[key] = limited_neg_donor_coords[key][start:end]
-			
-			# when need two ranges 
-			if len(words) == 4:
-				start1 = int(words[0]) - 1
-				end1 = int(words[1])
-				start2 = int(words[2]) - 1
-				end2 = int(words[3])
-				# coord list 1
-				coordlist1 = limited_neg_donor_coords[key][start1:end1]
-				# coord list 2
-				coordlist2 = limited_neg_donor_coords[key][start2:end2]
-
-				# join both lists
-				limited_neg_donor_coords[key] = coordlist1 + coordlist2
-
-	# if abs number of coord limitation is also requested...
-	# acceptor
-	if a_lim_num != 'NA':
-		# acceptor
-		for key, num in zip(a_lim_chrom, a_lim_num):
-			# first need to get rid of repeats
-			limited_neg_acceptor_coords[key] = list(set(limited_neg_acceptor_coords[key]))
-
-
-			# slice appropriately
-			words = num.split()
-			# when need only one range
-			if len(words) == 2:
-				start = int(words[0]) - 1 
-				end = int(words[1])
-				limited_neg_acceptor_coords[key] = limited_neg_acceptor_coords[key][start:end]
-			
-			# when need two ranges 
-			if len(words) == 4:
-				start1 = int(words[0]) - 1
-				end1 = int(words[1])
-				start2 = int(words[2]) - 1
-				end2 = int(words[3])
-				# coord list 1
-				coordlist1 = limited_neg_acceptor_coords[key][start1:end1]
-				# coord list 2
-				coordlist2 = limited_neg_acceptor_coords[key][start2:end2]
-
-				# join both lists
-				limited_neg_acceptor_coords[key] = coordlist1 + coordlist2
-
-
-	# return limited versions
-	if d_lim_chrom != 'NA' and a_lim_chrom != 'NA':
-		return limited_neg_donor_coords, limited_neg_acceptor_coords
-
-	if d_lim_chrom == 'NA' and a_lim_chrom != 'NA':
-		return negative_donor_coords, limited_neg_acceptor_coords
-
-	if d_lim_chrom != 'NA' and a_lim_chrom == 'NA':
-		return limited_neg_donor_coords, negative_acceptor_coords
-
-	# return un-limited version otherwise
 	return negative_donor_coords, negative_acceptor_coords
 
-
 d_lim_chrom = ['I', 'II', 'III', 'IV', 'V', 'X']
-d_lim_num = 'NA'
+d_lim_num = 'NA' 
 a_lim_chrom = ['I', 'II', 'III', 'IV', 'V', 'X']
-a_lim_num = 'NA'
+a_lim_num = 'NA' 
 
 donor_coordinates, acceptor_coordinates = extract_positive_coordinates(fasta, gff, 25, d_lim_chrom, d_lim_num, a_lim_chrom, a_lim_num)
 
-d_lim_chrom = ['I', 'II', 'III', 'IV', 'V', 'X']
-d_lim_num = ['1 424', '1 424', '1 424', '1 425', '1 425', '1 425'] # matching 2547, the total # of pos d sites
-a_lim_chrom = ['I', 'II', 'III', 'IV', 'V', 'X']
-a_lim_num = ['1 399', '1 399', '1 399', '1 399', '1 399', '1 399'] # matching 2394, total for neg a sites
+# for 1pct genome
 
-neg_donor_coordinates, neg_acceptor_coordinates =  extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, 9, 25, d_lim_chrom, d_lim_num, a_lim_chrom, a_lim_num)
+'''
+d_lim_num = 2547
+a_lim_num = 2394
+'''
+
+# for 100pct genome
+# will take around 70 minutes for either donor or acceptor
+d_lim_num = 263477
+a_lim_num = 251983
+
+neg_donor_coordinates, neg_acceptor_coordinates =  extract_negative_coords(donor_coordinates, acceptor_coordinates, fasta, 9, 25, d_lim_num, a_lim_num)
 
 # open genome as dictionary of SeqIO sequence objects
 
@@ -394,8 +288,6 @@ def print_fasta(pick):
 			print(seq)
 
 print_fasta(pick)
-
-
 
 
 

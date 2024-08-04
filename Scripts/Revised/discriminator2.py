@@ -5,6 +5,7 @@ import math
 import random
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.model_selection import KFold
 
 genome_fasta = sys.argv[1]
 d_fasta = sys.argv[2]
@@ -31,7 +32,7 @@ def genome_count(fasta):
 
 	# iterate through each seq portion of the fasta file
 	for defline, seq in mcb185.read_fasta(fasta):
-		for nt in seq:
+		for i, nt in enumerate(seq):
 			nt = nt.upper()
 			if nt == 'A':
 				dictionary["A"] += 1
@@ -159,7 +160,6 @@ def log_odds_matrix(fasta, pwm_json):
 # produce log odds scoring matrix for donor and acceptor
 log_odds_donor, log_odds_acceptor = log_odds_matrix(genome_fasta, pwm_json)
 
-
 class Seq:
 	def __init__(self, sequence, log_odd, classification, d_or_n):
 		self.sequence = sequence
@@ -185,6 +185,7 @@ def fasta_to_list(fasta, classification, d_or_n):
 	for defline, seq in mcb185.read_fasta(fasta):
 		log_odd = 0
 		for i, base in enumerate(seq):
+			base = base.upper()
 			if d_or_n == 'd':
 				log_odd += log_odds_donor[i+1][base]
 			if d_or_n == 'a':
@@ -192,38 +193,8 @@ def fasta_to_list(fasta, classification, d_or_n):
 		the_list.append(Seq(seq, log_odd, classification, d_or_n))
 	return the_list
 
-all_d = fasta_to_list(d_fasta, '+', 'd') + fasta_to_list(n_d_fasta, '-', 'd')
-all_a = fasta_to_list(a_fasta, '+', 'a') + fasta_to_list(n_a_fasta, '-', 'a')
-
-random.shuffle(all_d)
-random.shuffle(all_a)
-
-# split data 
-training_ratio = 0.7 
-validation_ratio = 0.15
-test_ratio = 0.15
-
-d_train_size = int(len(all_d) * training_ratio)
-d_validation_size = int(len(all_d) * validation_ratio)
-d_test_size = len(all_d) - d_train_size - d_validation_size
-
-a_train_size = int(len(all_a) * training_ratio)
-a_validation_size = int(len(all_a) * validation_ratio)
-a_test_size = len(all_a) - a_train_size - a_validation_size
-
-# the split data
-d_train = all_d[:d_train_size]
-d_validation = all_d[d_train_size:d_train_size+d_validation_size]
-d_test = all_d[d_train_size+d_validation_size:]
-
-a_train = all_a[:a_train_size]
-a_validation = all_a[a_train_size:a_train_size+a_validation_size]
-a_test = all_a[a_train_size+a_validation_size:]
-
-
-
 # the_list = training, validation, or test list of Seq objects
-# return TP, TN, FP, FN 
+# return accuracy
 def discriminator(the_list, threshold):
 	tp = 0
 	tn = 0
@@ -286,13 +257,57 @@ def best_thres(the_list, upper, lower, step):
 	return best_thres, best_accuracy
 
 
-# print(best_thres(d_train, 10, -10, 0.01))
+all_d = fasta_to_list(d_fasta, '+', 'd') + fasta_to_list(n_d_fasta, '-', 'd')
+all_a = fasta_to_list(a_fasta, '+', 'a') + fasta_to_list(n_a_fasta, '-', 'a')
 
-# graph(d_train, 10, -10, 0.1, "Donor Training Set Accuracy")
+random.shuffle(all_d)
+random.shuffle(all_a)
 
-graph(d_train, d_validation, 10, -10, 0.1, "Donor Train and Validation Set Accuracy Over Thresholds")
+# split data into training+val and test set first
+
+train_val_ratio = 0.8
+test_ratio = 0.2
+
+d_train_val_size = int(train_val_ratio * len(all_d))
+d_test_size = int(test_ratio * len(all_d))
+a_train_val_size = int(train_val_ratio * len(all_a))
+a_test_size = int(test_ratio * len(all_a))
+
+# these are the split data
+d_train_val = all_d[:d_train_val_size]
+d_test = all_d[d_train_val_size:]
+a_train_val = all_a[:a_train_val_size]
+a_test = all_a[a_train_val_size:]
+
+
+# use instance of KFold class to split training+val set into 5 parts, then cross validating
+def cross_val(train_val, d_or_a, splits, upper, lower, step):
+	kf = KFold(n_splits=splits, shuffle=True, random_state=42)
+	i = 0
+	for train_index, val_index in kf.split(train_val):
+		i += 1
+		if d_or_a == 'd':
+			train = [d_train_val[i] for i in train_index]
+			validation = [d_train_val[i] for i in val_index]
+		if d_or_a == 'a':
+			train = [a_train_val[i] for i in train_index]
+			validation = [a_train_val[i] for i in val_index]
+
+		
+		train_best_thres, train_best_acc = best_thres(train, upper, lower, step)
+		val_best_thres, val_best_acc = best_thres(validation, upper, lower, step)
+		print(f'For {d_or_a} Train Split: {i} the best threshold is {train_best_thres} with accuracy {train_best_acc}')
+		print(f'For {d_or_a} Validation Split: {i} the best threshold is {val_best_thres} with accuracy {val_best_acc}', end='\n\n')
+
+		graph(train, validation, upper, lower, step, f"{d_or_a} Train and Validation Set Accuracy Over Thresholds Split: {i}")
 
 
 
+cross_val(d_train_val, 'd', 5, 10, -10, 0.1)
 
+
+# 1.2499999999997602 was best threshold found during cross validation
+# testing threshold on test set
+
+# print(discriminator(d_test, 1.2499999999997602)) # result accuracy: 0.6221652908245558 
 
